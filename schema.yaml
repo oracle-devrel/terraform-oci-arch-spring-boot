@@ -1,0 +1,809 @@
+## Copyright © 2021, Oracle and/or its affiliates. 
+## All rights reserved. The Universal Permissive License (UPL), Version 1.0 as shown at http://oss.oracle.com/licenses/upl
+
+title: "SpringBoot application with MySQL Database Service"
+stackDescription: Deploy SpringBoot application with MySQL Database Service
+schemaVersion: 1.1.0
+version: "20190404"
+locale: "en"
+
+variableGroups:
+- title: General Configuration
+  visible: false
+  variables:
+  - tenancy_ocid
+  - release
+  - springboot_download_url
+  - availability_domain_number
+
+- title: Required Configuration
+  visible: true  
+  variables:
+  - region
+  - use_cloud_guard
+  - cloud_guard_configuration_reporting_region
+  - compartment_ocid
+  - compartment_SZ_ocid
+  - availability_domain_name
+  - numberOfNodes
+  - mysql_db_system_admin_password
+  - use_bastion_service
+  - show_advanced
+
+- title: Load Balancer Optional Configuration
+  visible: 
+      and:
+        - show_advanced
+  variables:
+  - lb_shape 
+  - flex_lb_min_shape
+  - flex_lb_max_shape 
+
+- title: Compute Instance Optional Configuration
+  visible: 
+      and:
+        - show_advanced  
+  variables:
+  - ssh_public_key
+  - instance_os
+  - linux_os_version
+  - WebserverInstanceShape
+  - WebserverInstanceFlexShapeOCPUS
+  - WebserverInstanceFlexShapeMemory
+
+- title: Bastion Optional Configuration
+  visible: 
+      and:
+        - show_advanced  
+  variables:
+  - BastionInstanceShape
+  - BastionInstanceFlexShapeOCPUS
+  - BastionInstanceFlexShapeMemory
+
+- title: Network Optional Configuration
+  visible: 
+      and:
+        - show_advanced  
+  variables:
+  - igw_display_name
+  - vcn01_display_name
+  - vcn01_dns_label
+  - vcn01_cidr_block
+  - vcn01_subnet_pub01_cidr_block
+  - vcn01_subnet_pub01_display_name
+  - vcn01_subnet_pub02_cidr_block
+  - vcn01_subnet_pub02_display_name
+  - vcn01_subnet_app01_cidr_block
+  - vcn01_subnet_app01_display_name
+  - vcn02_display_name
+  - vcn02_cidr_block
+  - vcn02_dns_label
+  - vcn02_subnet_db01_cidr_block
+  - vcn02_subnet_db01_display_name
+
+- title: MDS Optional Configuration
+  visible: 
+      and:
+        - show_advanced  
+  variables:
+  - mysql_db_system_admin_username
+  - mysql_shape_name 
+  - mysql_db_system_backup_policy_is_enabled
+  - mysql_db_system_data_storage_size_in_gb
+  - mysql_db_system_display_name
+  - mysql_db_system_hostname_label
+
+- title: Cloud Guard Optional Configuration
+  visible: 
+      and:
+        - show_advanced
+        - use_cloud_guard  
+  variables:
+  - cloud_guard_configuration_status
+  - target1_display_name
+  - target2_display_name
+  - detector_recipe1_display_name
+  - detector_recipe1_description
+  - responder_recipe1_display_name
+  - responder_recipe1_description
+  - detector_recipe2_display_name
+  - detector_recipe2_description
+  - responder_recipe2_display_name
+  - responder_recipe2_description
+  - responder_recipe_state
+  - detector_recipe_access_level
+  - detector_recipe_compartment_id_in_subtree
+  - detector_recipe_defined_tags_value
+  - detector_recipe_detector_rules_details_condition
+  - detector_recipe_detector_rules_details_configurations_data_type
+  - detector_recipe_detector_rules_details_configurations_value
+  - detector_recipe_detector_rules_details_configurations_values_list_type
+  - detector_recipe_detector_rules_details_configurations_values_value
+  - detector_recipe_detector_rules_details_is_enabled
+  - detector_recipe_detector_rules_details_labels
+  - detector_recipe_detector_rules_details_risk_level
+  - detector_recipe_detector_rules_details_configurations_config_key
+  - detector_recipe_detector_rules_details_configurations_name
+  - detector_recipe_detector_rules_details_configurations_values_managed_list_type
+  - detector_recipe_freeform_tags 
+  - detector_recipe_state
+  - target_description
+  - target_display_name
+  - target_state
+  - target_target_resource_type
+  - target_target_detector_recipes_detector_rules_details_condition_groups_condition
+  - target_target_responder_recipes_responder_rules_details_mode
+  - responder_recipe_responder_rules_details_is_enabled 
+
+variables:
+
+  # Required Configuration
+
+  show_advanced:
+    type: boolean
+    title: "Show advanced options?"
+    description: "Shows advanced options."
+    visible: true
+    default: false
+
+  compartment_ocid:
+    type: oci:identity:compartment:id
+    required: true
+    title: "Compartment (Non Security Zone)"
+    description: "Choose Compartment where you want to create the Virtual Machines."
+  
+  compartment_SZ_ocid:
+    visible: 
+      and:
+        - use_cloud_guard 
+    type: oci:identity:compartment:id
+    required: true
+    title: "Compartment (Security Zone)"
+    description: "Choose Security Zone Compartment where you want to create MySQL."
+
+  region:
+    type: oci:identity:region:name
+    required: true
+    title: Region
+    description: "Choose Region where you want to deploy the resources defined by this stack."
+
+  availability_domain_name:
+    type: oci:identity:availabilitydomain:name
+    required: true
+    visibile: true
+    title: "Availability Domain to be chosen"
+    description: "Availability Domain to be chosen"
+    dependsOn:
+      compartmentId: ${compartment_ocid}
+
+  use_cloud_guard:
+    type: boolean
+    visibile: true
+    default: true
+    required: false
+    title: "Use OCI Cloud Guard"
+    description: "Check the box to use OCI Cloud Guard and Security Zones"
+
+  use_bastion_service:
+    type: boolean
+    visibile: true
+    default: false
+    required: false
+    title: "Use OCI Bastion Service"
+    description: "Check the box to use OCI Bastion Service instead of Bastion Host VM."
+
+  cloud_guard_configuration_reporting_region:
+    visible: 
+      and:
+        - use_cloud_guard
+    type: oci:identity:region:name
+    required: true
+    title: "Region for Cloud Guard Configuration Reporting"
+    description: "Choose Region where you want to define Cloud Guard Configuration Reporting."
+
+  ssh_public_key:
+    type: oci:core:ssh:publickey
+    title: "Public SSH Key"
+    description: "Choose public SSH Key to be uploaded into compute instances."
+    required: false
+
+  BastionInstanceShape:
+    type: oci:core:instanceshape:name
+    required: true
+    title: "Bastion Instance Shape"
+    description: "Choose a shape allocated to Bastion instance."
+    default: "VM.Standard.E3.Flex"
+    dependsOn:
+      compartmentId: ${compartment_ocid}
+
+  BastionInstanceFlexShapeOCPUS:
+    type: number
+    required: false
+    minimum: 1
+    maximum: 128
+    multipleOf: 1
+    default: 1
+    title: "Bastion Flex Shape OCPUs"
+    description: "Choose number of OCPUs for Flex Shape."
+    visible:
+      and:
+        - or:
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Standard.E3.Flex"
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Standard.E4.Flex"
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Standard.A1.Flex"
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Optimized3.Flex"
+
+  BastionInstanceFlexShapeMemory:
+    type: number
+    required: false
+    minimum: 1
+    maximum: 128
+    multipleOf: 1
+    default: 1
+    title: "Bastion Flex Shape Memory (GB)"
+    description: "Choose number GB for Flex Shape Memory."
+    visible:
+      and:
+        - or:
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Standard.E3.Flex"
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Standard.E4.Flex"
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Standard.A1.Flex"
+          - eq:
+            - BastionInstanceShape 
+            - "VM.Optimized3.Flex"
+
+  WebserverInstanceShape:
+    type: oci:core:instanceshape:name
+    required: true
+    title: "Webserver Instance Shape"
+    description: "Choose a shape allocated to Webserver instance."
+    default: "VM.Standard.E3.Flex"
+    dependsOn:
+      compartmentId: ${compartment_ocid}
+
+  WebserverInstanceFlexShapeOCPUS:
+    type: number
+    required: false
+    minimum: 1
+    maximum: 128
+    multipleOf: 1
+    default: 1
+    title: "Webserver Flex Shape OCPUs"
+    description: "Choose number of OCPUs for Flex Shape."
+    visible:
+      and:
+        - or:
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Standard.E3.Flex"
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Standard.E4.Flex"
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Standard.A1.Flex"
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Optimized3.Flex"
+
+  WebserverInstanceFlexShapeMemory:
+    type: number
+    required: false
+    minimum: 1
+    maximum: 128
+    multipleOf: 1
+    default: 10
+    title: "Webserver Flex Shape Memory (GB)"
+    description: "Choose number GB for Flex Shape Memory."
+    visible:
+      and:
+        - or:
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Standard.E3.Flex"
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Standard.E4.Flex"
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Standard.A1.Flex"
+          - eq:
+            - WebserverInstanceShape 
+            - "VM.Optimized3.Flex"
+
+
+  mysql_db_system_admin_password:
+    type: password
+    required: true
+    title: "MySQL Database Password"
+    description: "Type MySQL Database Password for ADMIN user."
+
+  lb_shape:
+    type: enum
+    title: "LoadBalancer Shape"
+    description: "Choose LoadBalancer Shape"
+    default: "flexible"
+    required: false 
+    enum:
+      - "flexible"
+      - "100Mbps"
+      - "10Mbps"
+      - "10Mbps-Micro"
+      - "400Mbps"
+      - "8000Mbps"
+
+  flex_lb_min_shape:
+    type: enum
+    required: false
+    default: "10"
+    title: "LB Flex Min Shape"
+    description: "Choose Minimum Shape for Flex Load Balancer."
+    enum:
+      - "10"
+      - "100"
+      - "1000"
+      - "400"
+      - "8000"
+    visible:
+      and:
+        - eq:
+          - lb_shape 
+          - "flexible"
+
+  flex_lb_max_shape:
+    type: enum
+    required: false
+    default: "100"
+    title: "LB Flex Max Shape"
+    description: "Choose Maximum Shape for Flex Load Balancer."
+    enum:
+      - "10"
+      - "100"
+      - "1000"
+      - "400"
+      - "8000"
+    visible:
+      and:
+        - eq:
+          - lb_shape 
+          - "flexible"
+
+  # Optional Configuration
+
+  numberOfNodes:
+    type: number
+    title: "Number of Webservers"
+    description: "Choose number of Webservers."
+    minimum: 1
+    maximum: 128
+    multipleOf: 1
+    default: 3
+    required: false
+
+  instance_os:
+    type: enum
+    title: "Instance OS for Bastion Server"
+    description: "Choose OS/image installed for Bastion Server."
+    required: false
+    enum:
+      - "Oracle Linux"
+
+  linux_os_version:
+    type: enum
+    title: "OS Version for Bastion Server"
+    description: "Choose Operating System version for Bastion Server."
+    required: false
+    enum:
+      - "7.9"
+
+  igw_display_name:
+    type: string
+    required: false
+    title: "IGW Name"
+    description: "Type Display name of the Internet Gateway from the VCN."
+
+  vcn01_cidr_block:
+    type: string
+    required: false
+    title: "Non Security Zone VCN CIDR Block"
+    description: "Choose CIDR block that will be assigned to the Non Security Zone VCN."
+    pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\/(3[0-2]|[1-2]?[0-9])$"
+
+  vcn01_dns_label:
+    type: string
+    required: false
+    title: "DNS Label of Non Security Zone VCN"
+    description: "Type DNS label that will be asigned to the Non Security Zone VCN."
+
+  vcn01_display_name:
+    type: string
+    required: false
+    title: "Name of Non Security Zone VCN"
+    description: "Type Display Name assigned to Non Security Zone VCN."
+
+  vcn01_subnet_pub01_cidr_block:
+    type: string
+    required: false
+    title: "Non Security Zone Public Subnet 1 CIDR Block"
+    description: "Choose Non Security Zone CIDR block of Public Subnet 1."
+    pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\/(3[0-2]|[1-2]?[0-9])$"
+
+  vcn01_subnet_pub02_cidr_block:
+    type: string
+    required: false
+    title: "Non Security Zone Public Subnet 2 CIDR Block"
+    description: "Choose Non Security Zone CIDR block of Public Subnet 2"
+    pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\/(3[0-2]|[1-2]?[0-9])$"
+
+  vcn01_subnet_pub02_display_name:
+    type: string
+    required: false
+    title: "Name of Non Security Zone Public Subnet 2"
+    description: "Type Non Security Zone Public Subnet 2 Display Name."
+
+  vcn01_subnet_app01_cidr_block:
+    type: string
+    required: false
+    title: "Non Security Zone App Subnet CIDR Block"
+    description: "Choose Non Security Zone CIDR block of App Subnet"
+    pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\/(3[0-2]|[1-2]?[0-9])$"
+  
+  vcn01_subnet_app01_display_name:
+    type: string
+    required: false
+    title: "Name of Non Security Zone App Subnet"
+    description: "Type Non Security Zone App Subnet Display Name."
+
+  vcn02_cidr_block:
+    type: string
+    required: false
+    title: "Security Zone VCN CIDR Block"
+    description: "Choose CIDR block that will be assigned to the Security Zone VCN."
+    pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\/(3[0-2]|[1-2]?[0-9])$"
+  
+  vcn02_dns_label:
+    type: string
+    required: false
+    title: "DNS Label of Security Zone VCN"
+    description: "Type DNS label that will be asigned to the Security Zone VCN."
+
+  vcn02_display_name:
+    type: string
+    required: false
+    title: "Name of Security Zone VCN"
+    description: "Type Display Name assigned to Security Zone VCN."
+
+  vcn02_subnet_db01_cidr_block:
+    type: string
+    required: false
+    title: "Security Zone Database Subnet CIDR Block"
+    description: "Choose Security Zone CIDR block of Database Subnet"
+    pattern: "^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]).(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\/(3[0-2]|[1-2]?[0-9])$"
+  
+  vcn02_subnet_db01_display_name:
+    type: string
+    required: false
+    title: "Name of Non Security Zone Database Subnet"
+    description: "Type Non Security Zone Database Subnet Display Name."
+
+  mysql_db_system_admin_username:
+    type: string
+    required: false
+    title: "MySQL Admin User name"
+    description: "Type MySQL Admin user name."
+
+  mysql_db_system_backup_policy_is_enabled:
+    type: enum
+    required: false
+    default: "NO"
+    title: "MySQL DBSystem Backup Policy enabled"
+    description: "Choose if MySQL DBSystem Backup Policy will be enabled."
+    enum:
+      - "NO"
+      - "YES"
+
+  mysql_shape_name:
+    type: enum
+    required: false
+    default: "MySQL.VM.Standard.E3.1.8GB"
+    title: "MySQL Database System Shape"
+    description: "Choose MySQL Database System Shape (MDS) for your deployment."
+    enum:
+      - "VM.Standard.E2.1"
+      - "VM.Standard.E2.2"
+      - "VM.Standard.E2.4"  
+      - "VM.Standard.E2.8"
+      - "MySQL.VM.Standard.E3.1.8GB"
+      - "MySQL.VM.Standard.E3.1.16GB"      
+      - "MySQL.VM.Standard.E3.2.32GB"
+      - "MySQL.VM.Standard.E3.4.64GB"
+      - "MySQL.VM.Standard.E3.8.128GB"
+      - "MySQL.VM.Standard.E3.16.256GB"
+      - "MySQL.VM.Standard.E3.24.384GB"
+      - "MySQL.VM.Standard.E3.32.512GB"
+      - "MySQL.VM.Standard.E3.48.768GB"    
+      - "MySQL.VM.Standard.E3.64.1024GB"  
+      - "MySQL.HeatWave.VM.Standard.E3" 
+
+  mysql_db_system_data_storage_size_in_gb:
+    type: number
+    required: false
+    title: "MySQL DBSystem Data Storage size in GB"
+    description: "Choose MySQL DBSystem Data Storage size in GB."
+    minimum: 50
+    maximum: 65536
+    multipleOf: 1
+    default: 50
+
+  mysql_db_system_display_name:
+    type: string
+    required: false
+    title: "MySQL DBSystem Display Name"
+    description: "Type MySQL DBSystem Display Name."
+
+  mysql_db_system_hostname_label:
+    type: string
+    required: false
+    title: "MySQL DBSystem Hostname Label"
+    description: "Type MySQL DBSystem Hostname Label."
+
+  cloud_guard_configuration_status:
+    type: enum
+    title: "Cloud Guard Configuration Status"
+    description: "Choose if Cloud Guard Configuration should be enabled."
+    required: false
+    enum:
+      - "ENABLED"
+      - "DISABLED"
+
+  target1_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Target1 Display Name"
+    description: "Type Cloud Guard Target1 Display Name."
+
+  target2_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Target2 Display Name"
+    description: "Type Cloud Guard Target2 Display Name."
+
+  detector_recipe1_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe1 Display Name"
+    description: "Type Cloud Guard Detector Recipe1 Display Name."
+
+  detector_recipe1_description:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe1 description"
+    description: "Type Cloud Guard Detector Recipe1 description."
+
+  responder_recipe1_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Responder Recipe1 Display Name"
+    description: "Type Cloud Guard Responder Recipe1 Display Name."
+
+  responder_recipe1_description:
+    type: string
+    required: false
+    title: "Cloud Guard Responder Recipe1 description"
+    description: "Type Cloud Guard Responder Recipe1 description."
+
+  responder_recipe_state:
+    type: enum
+    default: "ACTIVE"
+    title: "Cloud Guard Responder Recipce State"
+    description: "Choose Cloud Guard Responder Recipce State."
+    required: false
+    enum:
+      - "ACTIVE"
+
+  detector_recipe2_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe2 Display Name"
+    description: "Type Cloud Guard Detector Recipe2 Display Name."
+
+  detector_recipe2_description:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe2 description"
+    description: "Type Cloud Guard Detector Recipe2 description."
+
+  responder_recipe2_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Responder Recipe2 Display Name"
+    description: "Type Cloud Guard Responder Recipe2 Display Name."
+
+  responder_recipe2_description:
+    type: string
+    required: false
+    title: "Cloud Guard Responder Recipe2 description"
+    description: "Type Cloud Guard Responder Recipe2 description."
+
+  detector_recipe_access_level:
+    type: enum
+    default: "ACCESSIBLE"
+    title: "Cloud Guard Detector Recipe Access Level"
+    description: "Choose Cloud Guard Detector Recipe Access Level."
+    required: false
+    enum:
+      - "ACCESSIBLE"
+      - "RESTRICTED"
+
+  detector_recipe_compartment_id_in_subtree:
+    type: boolean
+    default: true
+    required: false
+    title: "Cloud Guard Detector Recipe Compartment ID in subtree"
+    description: "Choose Cloud Guard Detector Recipe Compartment ID in subtree."
+
+  detector_recipe_defined_tags_value:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe defined tag value"
+    description: "Type Cloud Guard Detector Recipe defined tag value."
+  
+  detector_recipe_detector_rules_details_condition:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Conditions"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Conditions."
+
+  detector_recipe_detector_rules_details_configurations_data_type:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configuration Data Type"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configuration Data Type."
+
+  detector_recipe_detector_rules_details_configurations_value:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configuration Value"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configuration Value."
+
+  detector_recipe_detector_rules_details_configurations_values_list_type:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configuration Values List Type"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configuration Values List Type."
+
+  detector_recipe_detector_rules_details_configurations_values_value:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configuration Values Value"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configuration Values Value."  
+
+  detector_recipe_detector_rules_details_is_enabled:
+    type: boolean
+    required: false
+    default: true
+    title: "Cloud Guard Detector Recipe Detector Rules Details Enabled"
+    description: "Choose if Cloud Guard Detector Recipe Detector Rules Details is enabled."
+
+  detector_recipe_detector_rules_details_labels:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Label"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Label."  
+
+  detector_recipe_detector_rules_details_risk_level:
+    type: enum
+    required: false
+    default: "HIGH"
+    title: "Cloud Guard Detector Recipe Detector Rules Details Risk Level"
+    description: "Choose Cloud Guard Detector Recipe Detector Rules Details Risk Level."
+    enum:
+      - "HIGH"
+  
+  detector_recipe_detector_rules_details_configurations_config_key:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configurations Config Key"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configurations Config Key."  
+
+  detector_recipe_detector_rules_details_configurations_name:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configurations Name"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configurations Name."  
+
+  detector_recipe_detector_rules_details_configurations_values_managed_list_type:
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Detector Rules Details Configurations Values Managed List Type"
+    description: "Type Cloud Guard Detector Recipe Detector Rules Details Configurations Values Managed List Type." 
+
+  detector_recipe_freeform_tags:   
+    type: string
+    required: false
+    title: "Cloud Guard Detector Recipe Freeform Tags"
+    description: "Type Cloud Guard Detector Recipe Freeform Tags."  
+
+  detector_recipe_state:
+    type: enum
+    required: false
+    default: "ACTIVE"
+    title: "Cloud Guard Recipe State"
+    description: "Choose Cloud Guard Recipe State."
+    enum:
+      - "ACTIVE"
+
+  target_description:
+    type: string
+    required: false
+    title: "Cloud Guard Target description"
+    description: "Type Cloud Guard Target description."  
+
+  target_display_name:
+    type: string
+    required: false
+    title: "Cloud Guard Target display name"
+    description: "Type Cloud Guard Target display name."  
+
+  target_state:
+    type: enum
+    required: false
+    default: "ACTIVE"
+    title: "Cloud Guard Target State"
+    description: "Choose Cloud Guard Target State."
+    enum:
+      - "ACTIVE"
+
+  target_target_resource_type:
+    type: enum
+    required: false
+    default: "COMPARTMENT"
+    title: "Cloud Guard Target Resource Type"
+    description: "Choose Cloud Guard Target Resource Type."
+    enum:
+      - "COMPARTMENT"
+
+  target_target_detector_recipes_detector_rules_details_condition_groups_condition:
+    type: text
+    required: false
+    title: "Cloud Guard Target Detector Recipes Detector Rules Details Condition Group Condition"
+    description: "Type Cloud Guard Target Detector Recipes Detector Rules Details Condition Group Condition."  
+
+  target_target_responder_recipes_responder_rules_details_mode:
+    type: enum
+    required: false
+    title: "Cloud Guard Target Target Responder Recipes Responder Rules Details Mode"
+    description: "Choose Cloud Guard Target Target Responder Recipes Responder Rules Details Mode."  
+    enum:
+      - "AUTOACTION"
+
+  responder_recipe_responder_rules_details_is_enabled:
+    type: enum
+    required: false
+    default: "ACTIVE"
+    title: "Cloud Guard Responder Recipe Responder Rules Details Enabled"
+    description: "Choose if Cloud Guard Responder Recipe Responder Rules Details is Enabled."
+    enum:
+      - "ACTIVE"
+    
+outputs:
+
+  generated_ssh_private_key:
+    title: "Generated SSH Private Key"
+    displayText: "Generated SSH Private Key"
+    type: string
+    visible: true

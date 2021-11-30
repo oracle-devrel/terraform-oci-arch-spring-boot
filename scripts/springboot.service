@@ -1,0 +1,23 @@
+[Unit]
+Description=My SpringBoot Service
+After=syslog.target network.target
+
+[Service]
+SuccessExitStatus=143
+
+User=opc
+Group=opc
+
+Type=simple
+
+Environment="JAVA_HOME=/usr/bin/"
+Environment="SPRING_DATASOURCE_URL=jdbc:mysql://${db_server_ip_address}:3306/ocidb"
+Environment="SPRING_DATASOURCE_USERNAME=${db_user_name}"
+Environment="SPRING_DATASOURCE_PASSWORD=${db_user_password}"
+Environment="SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT=org.hibernate.dialect.MySQL5InnoDBDialect"
+WorkingDirectory=/home/opc/
+ExecStart=/usr/bin/java -jar ocispringbootdemo-0.0.1-SNAPSHOT.jar
+ExecStop=/bin/kill -15 $MAINPID
+
+[Install]
+WantedBy=multi-user.target
